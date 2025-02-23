@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "27950161623",
+    "project_id": "snatcher-5c6d9",
+    "storage_bucket": "snatcher-5c6d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27950161623:android:0d5c6e77086bc5f3ed5a92",
+        "android_client_info": {
+          "package_name": "com.finalyear.snatcher"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9ZcWPHFaDjp-qhupP_shoEwUUzOgA4Os"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
