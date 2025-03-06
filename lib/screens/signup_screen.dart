@@ -20,7 +20,6 @@ class _SignupScreenState extends State<SignupScreen> {
   // Controllers for Device Information
   final _imeiController = TextEditingController();
   final _modelController = TextEditingController();
-  final _simController = TextEditingController();
   final _carrierController = TextEditingController();
 
   // Controllers for Emergency Contacts
@@ -76,7 +75,6 @@ class _SignupScreenState extends State<SignupScreen> {
         'device_info': {
           'imei': _imeiController.text.trim(),
           'model': _modelController.text.trim(),
-          'sim': _simController.text.trim(),
           'carrier': _carrierController.text.trim(),
         },
         'emergency_contacts': [
@@ -160,8 +158,6 @@ class _SignupScreenState extends State<SignupScreen> {
                 _imeiController, 'IMEI Number', Icons.phone_android),
             _buildTextField(
                 _modelController, 'Model Name & Manufacturer', Icons.devices),
-            _buildTextField(
-                _simController, 'SIM Card Number (ICCID)', Icons.sim_card),
             _buildTextField(
                 _carrierController, 'Carrier Information', Icons.network_cell),
             SizedBox(height: 20),
