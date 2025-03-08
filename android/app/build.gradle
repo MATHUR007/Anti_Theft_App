@@ -43,10 +43,11 @@ android {
 
     defaultConfig {
         applicationId "com.finalyear.snatcher" // Updated to match your Firebase app ID
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 21  // Updated for Firebase compatibility
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -65,4 +66,11 @@ flutter {
 
 dependencies {
     // Add any additional dependencies here if needed
+    implementation platform('com.google.firebase:firebase-bom:32.7.0')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.android.support:multidex:1.0.3'
 }
+
+// Must be at the bottom of the file
+apply plugin: 'com.google.gms.google-services'
