@@ -20,6 +20,10 @@ dependencies:
   geocoding: ^3.0.0
   google_maps_flutter: ^2.0.6
   cupertino_icons: ^1.0.2
+  cloud_functions: ^4.4.0
+  shared_preferences: ^2.2.0
+  connectivity_plus: ^4.0.2
+  
 
 dev_dependencies:
   flutter_test:
