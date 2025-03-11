@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'UserReportScreen.dart';
 import 'LiveTrackingScreen.dart';
 import 'EmergencyScreen.dart';
 
@@ -31,7 +32,7 @@ class HomeScreen extends StatelessWidget {
               },
               child: Text('Live Tracking'),
             ),
-            SizedBox(height: 30),
+            SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -47,6 +48,27 @@ class HomeScreen extends StatelessWidget {
               ),
               child: Text(
                 'PANIC - DEVICE STOLEN',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => UserReportScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+              ),
+              child: Text(
+                'Generate User Report',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
