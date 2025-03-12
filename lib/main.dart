@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/login_screen.dart'; // Import your LoginScreen file
 
 void main() async {
@@ -16,6 +17,11 @@ void main() async {
       appId: "1:27950161623:web:dacee3dc110ea5b3ed5a92",
       measurementId: "G-WEE9Z5KSDK",
     ),
+  );
+
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
   runApp(SnatcherApp());

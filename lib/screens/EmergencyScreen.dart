@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class EmergencyScreen extends StatefulWidget {
   final String? reason;
@@ -58,12 +59,32 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     }
   }
 
-  // Check for internet connection
   Future<bool> _checkInternetConnection() async {
     try {
-      final result = await InternetAddress.lookup('google.com');
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } on SocketException catch (_) {
+      // This approach works on more platforms
+      if (Platform.isAndroid ||
+          Platform.isIOS ||
+          Platform.isLinux ||
+          Platform.isMacOS ||
+          Platform.isWindows) {
+        try {
+          final result = await InternetAddress.lookup('google.com');
+          return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+        } on SocketException catch (_) {
+          return false;
+        }
+      } else {
+        // For web and other platforms, try a different approach
+        // This could be a simple HTTP request
+        try {
+          final response = await http.get(Uri.parse('https://google.com'));
+          return response.statusCode == 200;
+        } catch (_) {
+          return false;
+        }
+      }
+    } catch (_) {
+      // Fallback for any other issues
       return false;
     }
   }
@@ -134,6 +155,31 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     }
   }
 
+  // Store emergency contacts locally for offline use
+  Future<void> _cacheEmergencyContacts(
+      List<Map<String, dynamic>> contacts) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('emergency_contacts', json.encode(contacts));
+    } catch (e) {
+      print("Failed to cache emergency contacts: $e");
+    }
+  }
+
+  // Get cached emergency contacts
+  Future<List<Map<String, dynamic>>> _getCachedEmergencyContacts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final contactsJson = prefs.getString('emergency_contacts');
+      if (contactsJson != null && contactsJson.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(json.decode(contactsJson));
+      }
+    } catch (e) {
+      print("Failed to get cached emergency contacts: $e");
+    }
+    return [];
+  }
+
   Future<void> sendEmergencyEmail() async {
     setState(() {
       _isSending = true;
@@ -152,59 +198,98 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         return;
       }
 
-      // Get user data - try to use cached data if offline
-      DocumentSnapshot<Map<String, dynamic>> userDoc;
+      // Try to get user data with a more resilient approach
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
+      Map<String, dynamic>? userData;
+      String userName = user.displayName ?? 'User';
+      String userEmail = user.email ?? '';
+      List<Map<String, dynamic>> contacts = [];
+
       try {
-        // Set source to cache if offline, server if online
-        Source source = isConnected ? Source.server : Source.cache;
+        // First try to get from server or cache, whichever is available
         userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .get(GetOptions(source: source));
+            .get();
+
+        if (userDoc.exists) {
+          userData = userDoc.data()!;
+          userName = userData['full_name'] ?? userName;
+          userEmail = userData['email'] ?? userEmail;
+          contacts = List<Map<String, dynamic>>.from(
+              userData['emergency_contacts'] ?? []);
+
+          // Cache contacts for offline use
+          if (contacts.isNotEmpty) {
+            await _cacheEmergencyContacts(contacts);
+          }
+        }
       } catch (e) {
-        _setErrorState('Could not access user data: $e');
-        return;
-      }
-
-      if (!userDoc.exists) {
-        _setErrorState('User profile not found');
-        return;
-      }
-
-      final userData = userDoc.data()!;
-      final userName = userData['full_name'] ?? 'User';
-      final userEmail = userData['email'];
-      final contacts =
-          List<Map<String, dynamic>>.from(userData['emergency_contacts'] ?? []);
-
-      if (contacts.isEmpty) {
-        _setErrorState('No emergency contacts found');
-        return;
-      }
-
-      // Get location - might work even if Firebase is offline
-      Position position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high);
-      } catch (e) {
-        // If can't get current position, try last known
+        // If that fails, try explicitly from cache
         try {
-          position = await Geolocator.getLastKnownPosition() ??
-              await Geolocator.getCurrentPosition(
-                  desiredAccuracy: LocationAccuracy.lowest);
-        } catch (e) {
-          _setErrorState('Could not determine location: $e');
+          userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get(GetOptions(source: Source.cache));
+
+          if (userDoc != null && userDoc.exists) {
+            userData = userDoc.data()!;
+            userName = userData['full_name'] ?? userName;
+            userEmail = userData['email'] ?? userEmail;
+            contacts = List<Map<String, dynamic>>.from(
+                userData['emergency_contacts'] ?? []);
+          }
+        } catch (cacheError) {
+          print("Cache access error: $cacheError");
+          // Try to get contacts from local storage
+          contacts = await _getCachedEmergencyContacts();
+        }
+      }
+
+      // If we still don't have contacts and we're offline, handle appropriately
+      if (contacts.isEmpty) {
+        if (!isConnected) {
+          setState(() {
+            _statusMessage =
+                'No emergency contacts available offline. Alert will be saved for later.';
+          });
+        } else {
+          _setErrorState(
+              'No emergency contacts found. Please add contacts in your profile.');
           return;
         }
       }
 
-      // Format location with Google Maps link
-      String locationText =
-          "Latitude: ${position.latitude}, Longitude: ${position.longitude}";
-      String mapsUrl =
-          "https://maps.google.com/?q=${position.latitude},${position.longitude}";
-      String location = "$locationText\nView on Maps: $mapsUrl";
+      // Get location - might work even if Firebase is offline
+      Position? position;
+      String location = "Location unavailable";
+
+      try {
+        position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high);
+
+        // Format location with Google Maps link
+        String locationText =
+            "Latitude: ${position.latitude}, Longitude: ${position.longitude}";
+        String mapsUrl =
+            "https://maps.google.com/?q=${position.latitude},${position.longitude}";
+        location = "$locationText\nView on Maps: $mapsUrl";
+      } catch (e) {
+        // If can't get current position, try last known
+        try {
+          position = await Geolocator.getLastKnownPosition();
+          if (position != null) {
+            String locationText =
+                "Last known location - Latitude: ${position.latitude}, Longitude: ${position.longitude}";
+            String mapsUrl =
+                "https://maps.google.com/?q=${position.latitude},${position.longitude}";
+            location = "$locationText\nView on Maps: $mapsUrl";
+          }
+        } catch (e) {
+          print("Location error: $e");
+          // Continue with unavailable location
+        }
+      }
 
       // Prepare message based on reason
       String alertMessage;

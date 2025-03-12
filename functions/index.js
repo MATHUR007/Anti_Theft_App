@@ -15,7 +15,7 @@
 //   response.send("Hello from Firebase!");
 // });
 
-const { onCall } = require("firebase-functions/v2/https");
+const {onCall} = require("firebase-functions/v2/https");
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
@@ -27,45 +27,46 @@ const transporter = nodemailer.createTransport({
 });
 
 exports.sendEmergencyEmail = onCall(async (data) => {
-  const { userEmail, contacts, location, userName, alertMessage, reason } = data;
+  const {contacts, location, userName, alertMessage, reason} = data;
 
   if (!contacts || !contacts.length) {
     throw new Error("Emergency contacts are required");
   }
-
   // Default message if alertMessage is not provided
-  const message = alertMessage || `${userName} has triggered an emergency alert`;
-  
+  const message = alertMessage ||
+    `${userName} has triggered an emergency alert`;
+
   // Email subject based on reason
   let subject = "EMERGENCY ALERT!";
-  if (reason === 'device_stolen') {
+  if (reason === "device_stolen") {
     subject = "URGENT: Device Stolen Alert!";
   }
 
   try {
-    const emailPromises = contacts.map(contact => {
+    const emailPromises = contacts.map((contact) => {
       if (!contact.email) return Promise.resolve(); // Skip if no email
 
       const mailOptions = {
         from: "your-email@gmail.com",
         to: contact.email,
         subject: subject,
-        text: `${message} at ${location}. This is an automated emergency alert.`,
+        text:
+      `${message} at ${location}. This is an automated emergency alert.`,
         html: `
           <h1 style="color: red;">${subject}</h1>
           <p><strong>${message}</strong> at:</p>
-          <p>${location.replace('\n', '<br>')}</p>
+          <p>${location.replace("\n", "<br>")}</p>
           <p>This is an automated emergency alert sent from their device.</p>
-        `
+        `,
       };
 
       return transporter.sendMail(mailOptions);
     });
 
     await Promise.all(emailPromises);
-    return { success: true };
+    return {success: true};
   } catch (error) {
     console.error("Error sending emails:", error);
-    return { success: false, error: error.message };
+    return {success: false, error: error.message};
   }
 });
