@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -9,6 +10,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
 
   // Controllers for User Information
   final _fullNameController = TextEditingController();
@@ -36,9 +38,15 @@ class _SignupScreenState extends State<SignupScreen> {
   final _contact3PhoneController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isTermsAccepted = false; // Terms and conditions checkbox status
+  bool _isTermsAccepted = false;
 
+  // Signup process
   Future<void> _signup() async {
+    // Validate all required fields
+    if (!_validateFields()) {
+      return;
+    }
+
     if (!_isTermsAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('You must accept the terms and conditions.')),
@@ -64,42 +72,15 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text.trim(),
       );
 
-      // Save user data to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'full_name': _fullNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'dob': _dobController.text.trim(),
-        'device_info': {
-          'imei': _imeiController.text.trim(),
-          'model': _modelController.text.trim(),
-          'carrier': _carrierController.text.trim(),
-        },
-        'emergency_contacts': [
-          {
-            'name': _contact1NameController.text.trim(),
-            'email': _contact1EmailController.text.trim(),
-            'phone': _contact1PhoneController.text.trim(),
-          },
-          {
-            'name': _contact2NameController.text.trim(),
-            'email': _contact2EmailController.text.trim(),
-            'phone': _contact2PhoneController.text.trim(),
-          },
-          {
-            'name': _contact3NameController.text.trim(),
-            'email': _contact3EmailController.text.trim(),
-            'phone': _contact3PhoneController.text.trim(),
-          },
-        ],
-      });
+      // Save user data to Firestore "Snatcher Database" collection
+      await _saveUserDataToFirestore();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signup successful!')),
+        SnackBar(content: Text('Data saved successfully')),
       );
-      Navigator.pop(context); // Navigate back to the login screen
+
+      // Navigate back to login screen
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
@@ -109,6 +90,106 @@ class _SignupScreenState extends State<SignupScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  // Save user data to Firestore "Snatcher Database" collection
+  Future<void> _saveUserDataToFirestore() async {
+    // Reference to Snatcher Database collection
+    CollectionReference snatcherDB = _firestore.collection('Snatcher Database');
+
+    // Add data to the collection
+    await snatcherDB.add({
+      'Full name': _fullNameController.text.trim(),
+      'Email': _emailController.text.trim(),
+      'Password': _passwordController.text.trim(),
+      'Confirm Password': _confirmPasswordController.text.trim(),
+      'Date Of Birth': _dobController.text.trim(),
+      'IMEI number': _imeiController.text.trim(),
+      'Model Number & Manufacturer': _modelController.text.trim(),
+      'Carrier Information': _carrierController.text.trim(),
+      'Fav Full Name': _contact1NameController.text.trim(),
+      'Fav Email': _contact1EmailController.text.trim(),
+      'Phone Number': _contact1PhoneController.text.trim(),
+      'created_at': FieldValue.serverTimestamp(),
+    });
+
+    // Add emergency contact 2 if provided
+    if (_contact2NameController.text.isNotEmpty) {
+      await snatcherDB.add({
+        'Email': _emailController.text.trim(), // link to main record
+        'Contact Type': 'Emergency Contact 2',
+        'Contact Name': _contact2NameController.text.trim(),
+        'Contact Email': _contact2EmailController.text.trim(),
+        'Contact Phone': _contact2PhoneController.text.trim(),
+      });
+    }
+
+    // Add emergency contact 3 if provided
+    if (_contact3NameController.text.isNotEmpty) {
+      await snatcherDB.add({
+        'Email': _emailController.text.trim(), // link to main record
+        'Contact Type': 'Emergency Contact 3',
+        'Contact Name': _contact3NameController.text.trim(),
+        'Contact Email': _contact3EmailController.text.trim(),
+        'Contact Phone': _contact3PhoneController.text.trim(),
+      });
+    }
+  }
+
+  // Validate all required fields
+  bool _validateFields() {
+    if (_fullNameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty ||
+        _dobController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text('Please fill in all required user information fields')),
+      );
+      return false;
+    }
+
+    // At least one emergency contact required
+    if (_contact1NameController.text.isEmpty ||
+        _contact1EmailController.text.isEmpty ||
+        _contact1PhoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Please provide at least one emergency contact')),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  // Terms and conditions dialog
+  void _showTermsAndConditions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Terms and Conditions'),
+        content: SingleChildScrollView(
+          child: Text(
+              'By using this application, you agree to the following terms and conditions:\n\n'
+              '1. You consent to the collection and storage of the personal information provided during signup.\n\n'
+              '2. Your emergency contacts may be notified in case of emergency situations as determined by the application.\n\n'
+              '3. Device information is collected for the purpose of identifying your device in emergency situations.\n\n'
+              '4. You are responsible for ensuring that the information provided is accurate and up-to-date.\n\n'
+              '5. The application does not guarantee immediate emergency response or intervention.\n\n'
+              '6. Your data will be handled in accordance with our Privacy Policy.\n\n'
+              '7. This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -176,17 +257,40 @@ class _SignupScreenState extends State<SignupScreen> {
                 _contact1NameController,
                 _contact1EmailController,
                 _contact1PhoneController,
-                'Emergency Contact 1'),
+                'Emergency Contact 1 (Required)'),
             _buildContactSection(
                 _contact2NameController,
                 _contact2EmailController,
                 _contact2PhoneController,
-                'Emergency Contact 2'),
+                'Emergency Contact 2 (Optional)'),
             _buildContactSection(
                 _contact3NameController,
                 _contact3EmailController,
                 _contact3PhoneController,
-                'Emergency Contact 3'),
+                'Emergency Contact 3 (Optional)'),
+            SizedBox(height: 20),
+
+            // Security Note (for reCAPTCHA v3)
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.security, color: Colors.blue.shade900),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'This form is protected by reCAPTCHA v3 to ensure you\'re not a robot.',
+                      style: TextStyle(color: Colors.blue.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             SizedBox(height: 20),
 
             // Terms and Conditions Checkbox
@@ -201,9 +305,17 @@ class _SignupScreenState extends State<SignupScreen> {
                   },
                 ),
                 Expanded(
-                  child: Text(
-                    'I agree to the Terms and Conditions',
-                    style: TextStyle(color: Colors.blue.shade900),
+                  child: GestureDetector(
+                    onTap: () {
+                      _showTermsAndConditions();
+                    },
+                    child: Text(
+                      'I agree to the Terms and Conditions',
+                      style: TextStyle(
+                        color: Colors.blue.shade900,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -234,6 +346,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
             ),
+            SizedBox(height: 20),
           ],
         ),
       ),
@@ -288,5 +401,28 @@ class _SignupScreenState extends State<SignupScreen> {
         SizedBox(height: 10),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    // Dispose all controllers
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _dobController.dispose();
+    _imeiController.dispose();
+    _modelController.dispose();
+    _carrierController.dispose();
+    _contact1NameController.dispose();
+    _contact1EmailController.dispose();
+    _contact1PhoneController.dispose();
+    _contact2NameController.dispose();
+    _contact2EmailController.dispose();
+    _contact2PhoneController.dispose();
+    _contact3NameController.dispose();
+    _contact3EmailController.dispose();
+    _contact3PhoneController.dispose();
+    super.dispose();
   }
 }
