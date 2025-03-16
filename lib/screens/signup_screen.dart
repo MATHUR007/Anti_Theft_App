@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -9,8 +7,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final _supabase = Supabase.instance.client;
 
   // Controllers for User Information
   final _fullNameController = TextEditingController();
@@ -18,6 +15,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _dobController = TextEditingController();
+  final _phoneController = TextEditingController(); // Added phone controller
 
   // Controllers for Device Information
   final _imeiController = TextEditingController();
@@ -28,14 +26,6 @@ class _SignupScreenState extends State<SignupScreen> {
   final _contact1NameController = TextEditingController();
   final _contact1EmailController = TextEditingController();
   final _contact1PhoneController = TextEditingController();
-
-  final _contact2NameController = TextEditingController();
-  final _contact2EmailController = TextEditingController();
-  final _contact2PhoneController = TextEditingController();
-
-  final _contact3NameController = TextEditingController();
-  final _contact3EmailController = TextEditingController();
-  final _contact3PhoneController = TextEditingController();
 
   bool _isLoading = false;
   bool _isTermsAccepted = false;
@@ -66,14 +56,17 @@ class _SignupScreenState extends State<SignupScreen> {
       }
 
       // Create user with email and password
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
+      final response = await _supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Save user data to Firestore "Snatcher Database" collection
-      await _saveUserDataToFirestore();
+      if (response.session != null) {
+        throw Exception(response.session!);
+      }
+
+      // Save user data to Supabase "Snatcher Database" table
+      await _saveUserDataToSupabase(response.user!.id); // Pass the user ID
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Data saved successfully')),
@@ -92,47 +85,25 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // Save user data to Firestore "Snatcher Database" collection
-  Future<void> _saveUserDataToFirestore() async {
-    // Reference to Snatcher Database collection
-    CollectionReference snatcherDB = _firestore.collection('Snatcher Database');
-
-    // Add data to the collection
-    await snatcherDB.add({
-      'Full name': _fullNameController.text.trim(),
-      'Email': _emailController.text.trim(),
-      'Password': _passwordController.text.trim(),
-      'Confirm Password': _confirmPasswordController.text.trim(),
-      'Date Of Birth': _dobController.text.trim(),
-      'IMEI number': _imeiController.text.trim(),
-      'Model Number & Manufacturer': _modelController.text.trim(),
-      'Carrier Information': _carrierController.text.trim(),
-      'Fav Full Name': _contact1NameController.text.trim(),
-      'Fav Email': _contact1EmailController.text.trim(),
-      'Phone Number': _contact1PhoneController.text.trim(),
-      'created_at': FieldValue.serverTimestamp(),
+  // Save user data to Supabase "Snatcher Database" table
+  Future<void> _saveUserDataToSupabase(String uid) async {
+    final response = await _supabase.from('Snatcher Database').insert({
+      'auth.uid': uid,
+      'full_name': _fullNameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'phone_number': _phoneController.text.trim(), // Added phone number
+      'date_of_birth': _dobController.text.trim(),
+      'imei_number': _imeiController.text.trim(),
+      'model_number_manufacturer': _modelController.text.trim(),
+      'carrier_information': _carrierController.text.trim(),
+      'fav_full_name': _contact1NameController.text.trim(),
+      'fav_email': _contact1EmailController.text.trim(),
+      'fav_phone_number': _contact1PhoneController.text.trim(),
+      'created_at': DateTime.now().toIso8601String(),
     });
 
-    // Add emergency contact 2 if provided
-    if (_contact2NameController.text.isNotEmpty) {
-      await snatcherDB.add({
-        'Email': _emailController.text.trim(), // link to main record
-        'Contact Type': 'Emergency Contact 2',
-        'Contact Name': _contact2NameController.text.trim(),
-        'Contact Email': _contact2EmailController.text.trim(),
-        'Contact Phone': _contact2PhoneController.text.trim(),
-      });
-    }
-
-    // Add emergency contact 3 if provided
-    if (_contact3NameController.text.isNotEmpty) {
-      await snatcherDB.add({
-        'Email': _emailController.text.trim(), // link to main record
-        'Contact Type': 'Emergency Contact 3',
-        'Contact Name': _contact3NameController.text.trim(),
-        'Contact Email': _contact3EmailController.text.trim(),
-        'Contact Phone': _contact3PhoneController.text.trim(),
-      });
+    if (response.error != null) {
+      throw Exception(response.error!.message);
     }
   }
 
@@ -221,6 +192,7 @@ class _SignupScreenState extends State<SignupScreen> {
             _buildTextField(
                 _confirmPasswordController, 'Confirm Password', Icons.lock,
                 obscureText: true),
+            _buildTextField(_phoneController, 'Phone Number', Icons.phone),
             _buildTextField(_dobController, 'Date of Birth (DD/MM/YYYY)',
                 Icons.calendar_today),
             SizedBox(height: 20),
@@ -258,16 +230,6 @@ class _SignupScreenState extends State<SignupScreen> {
                 _contact1EmailController,
                 _contact1PhoneController,
                 'Emergency Contact 1 (Required)'),
-            _buildContactSection(
-                _contact2NameController,
-                _contact2EmailController,
-                _contact2PhoneController,
-                'Emergency Contact 2 (Optional)'),
-            _buildContactSection(
-                _contact3NameController,
-                _contact3EmailController,
-                _contact3PhoneController,
-                'Emergency Contact 3 (Optional)'),
             SizedBox(height: 20),
 
             // Security Note (for reCAPTCHA v3)
@@ -417,12 +379,6 @@ class _SignupScreenState extends State<SignupScreen> {
     _contact1NameController.dispose();
     _contact1EmailController.dispose();
     _contact1PhoneController.dispose();
-    _contact2NameController.dispose();
-    _contact2EmailController.dispose();
-    _contact2PhoneController.dispose();
-    _contact3NameController.dispose();
-    _contact3EmailController.dispose();
-    _contact3PhoneController.dispose();
     super.dispose();
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase package
 import 'home_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart'; // Import the Forgot Password screen
@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _auth = FirebaseAuth.instance;
+  final _supabase = Supabase.instance.client; // Initialize Supabase client
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -21,14 +21,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _auth.signInWithEmailAndPassword(
+      final response = await _supabase.auth.signInWithPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
-      );
+      if (response.session == null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
@@ -68,7 +70,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 SizedBox(height: 20),
-
                 // Title
                 Text(
                   'Login to Snatcher',
@@ -79,7 +80,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 SizedBox(height: 10),
-
                 // Subtitle
                 Text(
                   'Secure your account and access your data',
@@ -90,7 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 30),
-
                 // Email Input Field
                 TextField(
                   controller: _emailController,
@@ -108,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 SizedBox(height: 20),
-
                 // Password Input Field
                 TextField(
                   controller: _passwordController,
@@ -126,7 +124,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: true,
                 ),
                 SizedBox(height: 10),
-
                 // Forgot Password Link
                 Align(
                   alignment: Alignment.centerRight,
@@ -149,7 +146,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 SizedBox(height: 20),
-
                 // Login Button
                 _isLoading
                     ? CircularProgressIndicator()
@@ -173,7 +169,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                 SizedBox(height: 20),
-
                 // Signup Link
                 TextButton(
                   onPressed: () {

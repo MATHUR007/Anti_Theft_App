@@ -1,27 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart'; // Import your LoginScreen file
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase for web
-  await Firebase.initializeApp(
-    options: FirebaseOptions(
-      apiKey: "AIzaSyC1EwzQtYq6VIhbSJFrIQKpK2XFdM0HvBc",
-      authDomain: "snatcher-5c6d9.firebaseapp.com",
-      projectId: "snatcher-5c6d9",
-      storageBucket: "snatcher-5c6d9.appspot.com",
-      messagingSenderId: "27950161623",
-      appId: "1:27950161623:web:dacee3dc110ea5b3ed5a92",
-      measurementId: "G-WEE9Z5KSDK",
-    ),
-  );
-
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: 'https://ssmnledfrsfrflumfrbz.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzbW5sZWRmcnNmcmZsdW1mcmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIwNjU0NjIsImV4cCI6MjA1NzY0MTQ2Mn0.kNDPmYWdrKUkJwOdu12itTbBO-eXJMTA4fcUbz_uWIg',
   );
 
   runApp(SnatcherApp());
