@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class UserReportScreen extends StatefulWidget {
   @override
@@ -19,45 +20,53 @@ class _UserReportScreenState extends State<UserReportScreen> {
   }
 
   Future<void> _generateUserReport() async {
-    User? user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    try {
+      final userData = await Supabase.instance.client
+          .from('Snatcher Database')
+          .select()
+          .eq('"auth.uid"', user.id) // changed from 'auth.id' to 'auth.uid'
+          .single();
 
-    if (!userDoc.exists) {
+      String report = """
+      User Report
+      -----------
+      Full Name: ${userData['full_name'] ?? 'Not available'}
+      Email: ${userData['email'] ?? 'Not available'}
+      Date of Birth: ${userData['date_of_birth'] ?? 'Not available'}
+      Phone Number: ${userData['phone_number'] ?? 'Not available'}
+      
+      Device Information:
+      IMEI: ${userData['imei_number'] ?? 'Not available'}
+      Model: ${userData['model_number_manufacturer'] ?? 'Not available'}
+      Carrier: ${userData['carrier_information'] ?? 'Not available'}
+      """;
+
+      setState(() {
+        _reportText = report;
+        _isLoading = false;
+      });
+    } catch (e) {
       setState(() {
         _reportText = "User data not found.";
         _isLoading = false;
       });
-      return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
     }
+  }
 
-    Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+  Future<void> _downloadReport() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/user_report.txt');
+    await file.writeAsString(_reportText);
 
-    String report = """
-    User Report
-    -----------
-    Full Name: ${userData['full_name']}
-    Email: ${userData['email']}
-    Date of Birth: ${userData['dob']}
-    
-    Device Information:
-    IMEI: ${userData['device_info']['imei']}
-    Model: ${userData['device_info']['model']}
-    Carrier: ${userData['device_info']['carrier']}
-    
-    Last Known Location:
-    Latitude: ${userData['location']?['latitude'] ?? 'Not available'}
-    Longitude: ${userData['location']?['longitude'] ?? 'Not available'}
-    """;
-
-    setState(() {
-      _reportText = report;
-      _isLoading = false;
-    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Report downloaded to ${file.path}')),
+    );
   }
 
   void _shareReport() {
@@ -81,9 +90,18 @@ class _UserReportScreenState extends State<UserReportScreen> {
                     ),
                   ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _shareReport,
-              child: Text("Share Report"),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _shareReport,
+                  child: Text("Share Report"),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _downloadReport,
+                  child: Text("Download Report"),
+                ),
+              ],
             ),
           ],
         ),

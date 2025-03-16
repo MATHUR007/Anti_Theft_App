@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LiveTrackingScreen extends StatefulWidget {
   @override
@@ -12,7 +11,7 @@ class LiveTrackingScreen extends StatefulWidget {
 class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   GoogleMapController? _mapController;
   Position? _currentPosition;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
   final Set<Marker> _markers = {};
 
   @override
@@ -60,19 +59,16 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     _updateUserLocation(position);
   }
 
-  // Function to update the location in Firestore
+  // Function to update the location in Supabase
   void _updateUserLocation(Position position) async {
-    User? user = _auth.currentUser;
+    final user = _supabase.auth.currentUser;
     if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
+      await _supabase.from('users').update({
         'location': {
           'latitude': position.latitude,
           'longitude': position.longitude,
         },
-      });
+      }).eq('id', user.id);
     }
   }
 

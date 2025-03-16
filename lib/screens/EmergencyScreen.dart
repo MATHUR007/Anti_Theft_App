@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,7 +16,7 @@ class EmergencyScreen extends StatefulWidget {
 }
 
 class _EmergencyScreenState extends State<EmergencyScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
   bool _isSending = false;
   String _statusMessage = '';
   bool _isError = false;
@@ -107,9 +105,8 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       for (int i = 0; i < pendingAlerts.length; i++) {
         try {
           final alertData = json.decode(pendingAlerts[i]);
-          final callable =
-              FirebaseFunctions.instance.httpsCallable('sendEmergencyEmail');
-          await callable.call(alertData);
+          await _supabase.functions
+              .invoke('sendEmergencyEmail', body: alertData);
 
           // Remove sent alert
           pendingAlerts.removeAt(i);
@@ -192,53 +189,44 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       // Check internet connection first
       bool isConnected = await _checkInternetConnection();
 
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         _setErrorState('User not logged in');
         return;
       }
 
       // Try to get user data with a more resilient approach
-      DocumentSnapshot<Map<String, dynamic>>? userDoc;
       Map<String, dynamic>? userData;
-      String userName = user.displayName ?? 'User';
+      String userName = user.userMetadata['full_name'] ?? 'User';
       String userEmail = user.email ?? '';
       List<Map<String, dynamic>> contacts = [];
 
       try {
         // First try to get from server or cache, whichever is available
-        userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+        final response =
+            await _supabase.from('users').select().eq('id', user.id).single();
 
-        if (userDoc.exists) {
-          userData = userDoc.data()!;
-          userName = userData['full_name'] ?? userName;
-          userEmail = userData['email'] ?? userEmail;
-          contacts = List<Map<String, dynamic>>.from(
-              userData['emergency_contacts'] ?? []);
+        userData = response;
+        userName = userData['full_name'] ?? userName;
+        userEmail = userData['email'] ?? userEmail;
+        contacts = List<Map<String, dynamic>>.from(
+            userData['emergency_contacts'] ?? []);
 
-          // Cache contacts for offline use
-          if (contacts.isNotEmpty) {
-            await _cacheEmergencyContacts(contacts);
-          }
+        // Cache contacts for offline use
+        if (contacts.isNotEmpty) {
+          await _cacheEmergencyContacts(contacts);
         }
       } catch (e) {
         // If that fails, try explicitly from cache
         try {
-          userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get(GetOptions(source: Source.cache));
+          final response =
+              await _supabase.from('users').select().eq('id', user.id).single();
 
-          if (userDoc != null && userDoc.exists) {
-            userData = userDoc.data()!;
-            userName = userData['full_name'] ?? userName;
-            userEmail = userData['email'] ?? userEmail;
-            contacts = List<Map<String, dynamic>>.from(
-                userData['emergency_contacts'] ?? []);
-          }
+          userData = response;
+          userName = userData['full_name'] ?? userName;
+          userEmail = userData['email'] ?? userEmail;
+          contacts = List<Map<String, dynamic>>.from(
+              userData['emergency_contacts'] ?? []);
         } catch (cacheError) {
           print("Cache access error: $cacheError");
           // Try to get contacts from local storage
@@ -260,7 +248,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         }
       }
 
-      // Get location - might work even if Firebase is offline
+      // Get location - might work even if Supabase is offline
       Position? position;
       String location = "Location unavailable";
 
@@ -324,20 +312,15 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
       while (_retryCount < _maxRetries) {
         try {
-          final callable =
-              FirebaseFunctions.instance.httpsCallable('sendEmergencyEmail');
-          final result = await callable.call(alertData);
+          await _supabase.functions
+              .invoke('sendEmergencyEmail', body: alertData);
 
-          if (result.data['success']) {
-            setState(() {
-              _isSending = false;
-              _statusMessage = 'Alert sent successfully!';
-              _isError = false;
-            });
-            return;
-          } else {
-            throw Exception(result.data['error']);
-          }
+          setState(() {
+            _isSending = false;
+            _statusMessage = 'Alert sent successfully!';
+            _isError = false;
+          });
+          return;
         } catch (e) {
           _retryCount++;
           if (_retryCount >= _maxRetries) {

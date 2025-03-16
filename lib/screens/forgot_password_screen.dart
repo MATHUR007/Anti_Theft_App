@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   @override
@@ -8,11 +9,21 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailOrPhoneController = TextEditingController();
 
-  void _sendOTP() {
-    // Simulate sending OTP
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('OTP has been sent')),
-    );
+  void _sendOTP() async {
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        _emailOrPhoneController.text,
+      );
+      // If successful (no exception thrown), show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email has been sent')),
+      );
+    } catch (e) {
+      // If an error occurs, it will be caught here
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}')),
+      );
+    }
   }
 
   @override
