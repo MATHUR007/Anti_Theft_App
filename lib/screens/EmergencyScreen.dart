@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 
 class EmergencyScreen extends StatefulWidget {
   final String? reason;
@@ -22,6 +23,14 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   bool _isError = false;
   int _retryCount = 0;
   final int _maxRetries = 3;
+
+  // Emergency contact fallback (use this when no contacts can be retrieved)
+  final List<Map<String, dynamic>> _fallbackContacts = [
+    {
+      'full_name': 'Harvey',
+      'email': 'mathurhardikdrive@gmail.com', // Replace with a real email
+    }
+  ];
 
   @override
   void initState() {
@@ -59,30 +68,10 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
 
   Future<bool> _checkInternetConnection() async {
     try {
-      // This approach works on more platforms
-      if (Platform.isAndroid ||
-          Platform.isIOS ||
-          Platform.isLinux ||
-          Platform.isMacOS ||
-          Platform.isWindows) {
-        try {
-          final result = await InternetAddress.lookup('google.com');
-          return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-        } on SocketException catch (_) {
-          return false;
-        }
-      } else {
-        // For web and other platforms, try a different approach
-        // This could be a simple HTTP request
-        try {
-          final response = await http.get(Uri.parse('https://google.com'));
-          return response.statusCode == 200;
-        } catch (_) {
-          return false;
-        }
-      }
+      // Use HTTP request for all platforms including web
+      final response = await http.get(Uri.parse('https://google.com'));
+      return response.statusCode == 200;
     } catch (_) {
-      // Fallback for any other issues
       return false;
     }
   }
@@ -105,8 +94,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       for (int i = 0; i < pendingAlerts.length; i++) {
         try {
           final alertData = json.decode(pendingAlerts[i]);
-          await _supabase.functions
-              .invoke('sendEmergencyEmail', body: alertData);
+          await _sendEmailAlert(alertData);
 
           // Remove sent alert
           pendingAlerts.removeAt(i);
@@ -177,6 +165,51 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
     return [];
   }
 
+  // New method to send email alerts
+  Future<void> _sendEmailAlert(Map<String, dynamic> alertData) async {
+    List<Map<String, dynamic>> contacts =
+        List<Map<String, dynamic>>.from(alertData['contacts'] ?? []);
+    String subject = widget.reason == 'device_stolen'
+        ? "URGENT: Device Stolen Alert"
+        : "URGENT: Emergency Alert";
+
+    String body = "${alertData['alertMessage']}\n\n";
+    body += "Location: ${alertData['location']}\n\n";
+    body +=
+        "This is an automated emergency alert message. Please contact ${alertData['userName']} immediately.";
+
+    List<String> recipients = [];
+    for (var contact in contacts) {
+      if (contact['email'] != null && contact['email'].toString().isNotEmpty) {
+        recipients.add(contact['email'].toString());
+      }
+    }
+
+    // If favorite contact exists and not already in recipients, add it
+    if (alertData['favoriteContact'] != null &&
+        alertData['favoriteContact']['fav_email'] != null &&
+        alertData['favoriteContact']['fav_email'].toString().isNotEmpty) {
+      String favEmail = alertData['favoriteContact']['fav_email'].toString();
+      if (!recipients.contains(favEmail)) {
+        recipients.add(favEmail);
+      }
+    }
+
+    // If no recipients, can't send email
+    if (recipients.isEmpty) {
+      throw Exception("No email recipients available");
+    }
+
+    final Email email = Email(
+      body: body,
+      subject: subject,
+      recipients: recipients,
+      isHTML: false,
+    );
+
+    await FlutterEmailSender.send(email);
+  }
+
   Future<void> sendEmergencyEmail() async {
     setState(() {
       _isSending = true;
@@ -189,63 +222,64 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
       // Check internet connection first
       bool isConnected = await _checkInternetConnection();
 
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
-        _setErrorState('User not logged in');
-        return;
-      }
-
       // Try to get user data with a more resilient approach
-      Map<String, dynamic>? userData;
-      String userName = user.userMetadata['full_name'] ?? 'User';
-      String userEmail = user.email ?? '';
+      String userName = 'User';
+      String userEmail = '';
       List<Map<String, dynamic>> contacts = [];
+      Map<String, dynamic>? favoriteContact;
 
       try {
-        // First try to get from server or cache, whichever is available
-        final response =
-            await _supabase.from('users').select().eq('id', user.id).single();
+        // Try to get user from Supabase
+        final user = _supabase.auth.currentUser;
+        if (user != null) {
+          userName = user.userMetadata?['full_name'] ?? 'User';
+          userEmail = user.email ?? '';
 
-        userData = response;
-        userName = userData['full_name'] ?? userName;
-        userEmail = userData['email'] ?? userEmail;
-        contacts = List<Map<String, dynamic>>.from(
-            userData['emergency_contacts'] ?? []);
+          try {
+            // First try to get from server or cache, whichever is available
+            final response = await _supabase
+                .from('"Snatcher Database"')
+                .select()
+                .eq('"auth.uid"', user.id)
+                .single();
 
-        // Cache contacts for offline use
-        if (contacts.isNotEmpty) {
-          await _cacheEmergencyContacts(contacts);
+            Map<String, dynamic> userData = response;
+            userName = userData['full_name'] ?? userName;
+            userEmail = userData['email'] ?? userEmail;
+            contacts = List<Map<String, dynamic>>.from(
+                userData['emergency_contacts'] ?? []);
+
+            // Fetch favorite contact details
+            final favResponse = await _supabase
+                .from('"Snatcher Database"')
+                .select('fav_full_name, fav_email, fav_phone_number')
+                .eq('"auth.uid"', user.id)
+                .single();
+
+            favoriteContact = favResponse;
+
+            // Cache contacts for offline use
+            await _cacheEmergencyContacts(contacts);
+          } catch (e) {
+            print("Supabase data fetch error: $e");
+          }
         }
       } catch (e) {
-        // If that fails, try explicitly from cache
-        try {
-          final response =
-              await _supabase.from('users').select().eq('id', user.id).single();
+        print("User auth error: $e");
+      }
 
-          userData = response;
-          userName = userData['full_name'] ?? userName;
-          userEmail = userData['email'] ?? userEmail;
-          contacts = List<Map<String, dynamic>>.from(
-              userData['emergency_contacts'] ?? []);
+      // If no contacts from Supabase, try cache
+      if (contacts.isEmpty) {
+        try {
+          contacts = await _getCachedEmergencyContacts();
         } catch (cacheError) {
           print("Cache access error: $cacheError");
-          // Try to get contacts from local storage
-          contacts = await _getCachedEmergencyContacts();
         }
       }
 
-      // If we still don't have contacts and we're offline, handle appropriately
+      // If still no contacts, use fallback
       if (contacts.isEmpty) {
-        if (!isConnected) {
-          setState(() {
-            _statusMessage =
-                'No emergency contacts available offline. Alert will be saved for later.';
-          });
-        } else {
-          _setErrorState(
-              'No emergency contacts found. Please add contacts in your profile.');
-          return;
-        }
+        contacts = _fallbackContacts;
       }
 
       // Get location - might work even if Supabase is offline
@@ -296,7 +330,8 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         'contacts': contacts,
         'location': location,
         'alertMessage': alertMessage,
-        'reason': widget.reason ?? 'emergency'
+        'reason': widget.reason ?? 'emergency',
+        'favoriteContact': favoriteContact
       };
 
       if (!isConnected) {
@@ -305,15 +340,14 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
         return;
       }
 
-      // Try to send with retries if online
+      // Try to send email with retries if online
       setState(() {
         _statusMessage = 'Sending alert...';
       });
 
       while (_retryCount < _maxRetries) {
         try {
-          await _supabase.functions
-              .invoke('sendEmergencyEmail', body: alertData);
+          await _sendEmailAlert(alertData);
 
           setState(() {
             _isSending = false;
@@ -322,6 +356,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
           });
           return;
         } catch (e) {
+          print("Email error: $e");
           _retryCount++;
           if (_retryCount >= _maxRetries) {
             // If all retries fail, save for later
@@ -375,7 +410,7 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 )
               else
                 ElevatedButton(
-                  onPressed: sendEmergencyEmail,
+                  onPressed: sendEmergencyEmail, // Updated to use email
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),

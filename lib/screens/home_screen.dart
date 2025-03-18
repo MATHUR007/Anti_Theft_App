@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'UserReportScreen.dart';
 import 'LiveTrackingScreen.dart';
 import 'EmergencyScreen.dart';
+import 'Blacklistnumber.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -79,6 +80,17 @@ class HomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => BlacklistNumberScreen()),
+                );
+              },
+              child: Text('Check Blacklist'),
             ),
           ],
         ),
