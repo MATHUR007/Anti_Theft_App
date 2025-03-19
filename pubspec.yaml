@@ -24,6 +24,8 @@ dependencies:
   share_plus: ^7.2.1
   http: ^1.1.0
   email_auth: ^1.1.1
+  geofence_service: ^6.0.0+1
+
   
   # reCAPTCHA
   g_recaptcha_v3: ^0.0.5

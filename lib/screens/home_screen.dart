@@ -4,6 +4,7 @@ import 'UserReportScreen.dart';
 import 'LiveTrackingScreen.dart';
 import 'EmergencyScreen.dart';
 import 'Blacklistnumber.dart';
+import 'geofence.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -36,6 +37,27 @@ class HomeScreen extends StatelessWidget {
                 );
               },
               child: Text('Live Tracking'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => GeofenceScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+              ),
+              child: Text(
+                'Geofence Management',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             SizedBox(height: 20),
             ElevatedButton(
