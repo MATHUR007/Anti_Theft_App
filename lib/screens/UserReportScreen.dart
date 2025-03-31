@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class UserReportScreen extends StatefulWidget {
   @override
@@ -30,6 +31,15 @@ class _UserReportScreenState extends State<UserReportScreen> {
           .eq('"auth.uid"', user.id) // changed from 'auth.id' to 'auth.uid'
           .single();
 
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+      } catch (e) {
+        print('Error fetching location: $e');
+      }
+
       String report = """
       User Report
       -----------
@@ -42,6 +52,10 @@ class _UserReportScreenState extends State<UserReportScreen> {
       IMEI: ${userData['imei_number'] ?? 'Not available'}
       Model: ${userData['model_number_manufacturer'] ?? 'Not available'}
       Carrier: ${userData['carrier_information'] ?? 'Not available'}
+      
+      Last Location:
+      Latitude: ${position?.latitude ?? 'Not available'}
+      Longitude: ${position?.longitude ?? 'Not available'}
       """;
 
       setState(() {
