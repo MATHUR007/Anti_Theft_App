@@ -32,42 +32,54 @@ class _GeofenceScreenState extends State<GeofenceScreen> {
       await _loadGeofences();
       await _getCurrentPosition();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error initializing geofencing: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing geofencing: $e')),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadGeofences() async {
     try {
       final data = await Supabase.instance.client.from('geofences').select();
-      setState(() {
-        _geofences.clear();
-        for (final fence in data) {
-          _geofences.add(fence);
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _geofences.clear();
+          for (final fence in data) {
+            _geofences.add(fence);
+          }
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading geofences: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading geofences: $e')),
+        );
+      }
     }
   }
 
   Future<void> _getCurrentPosition() async {
     try {
       final position = await Geolocator.getCurrentPosition();
-      setState(() {
-        _currentPosition = position;
-      });
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error getting current position: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error getting current position: $e')),
+        );
+      }
     }
   }
 

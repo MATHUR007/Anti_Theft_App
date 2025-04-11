@@ -58,15 +58,19 @@ class _UserReportScreenState extends State<UserReportScreen> {
       Longitude: ${position?.longitude ?? 'Not available'}
       """;
 
-      setState(() {
-        _reportText = report;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _reportText = report;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _reportText = "User data not found.";
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _reportText = "User data not found.";
+          _isLoading = false;
+        });
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
       );
